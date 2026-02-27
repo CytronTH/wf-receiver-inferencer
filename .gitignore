@@ -1,0 +1,16 @@
+*.pyc
+__pycache__/
+venv/
+.env
+
+# Hailo Logs
+hailort.log
+*.log
+
+# Temp files
+.DS_Store
+*.zip
+*.tar.gz
+
+# Ignore model weights if they are too large for GitHub (uncomment if using Git LFS or releasing models separately)
+# models/*.hef
