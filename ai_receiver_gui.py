@@ -25,16 +25,6 @@ PORTS = {
     1: 8081,
 }
 
-IMAGE_ROUTING = {
-    "masked_surface": "surface",
-    "crop_0": "crop0",
-    "crop_1": "crop1",
-    "crop_2": "crop2",
-    "crop_3": "crop3",
-    "crop_4": "crop4",
-    "crop_5": "crop5",
-}
-
 infer_lock = threading.Lock()
 
 def recvall(sock, n):
@@ -107,10 +97,8 @@ class TCPReceiverWorker(QThread):
                 img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
                 if img is None: continue
 
-                # Inference Routing
-                if image_id not in IMAGE_ROUTING: continue
-                model_key = IMAGE_ROUTING[image_id]
-                model = self.models.get(model_key)
+                # Inference Routing: image_id ตรงกับ model key โดยตรง
+                model = self.models.get(image_id)
                 if model is None: continue
 
                 with infer_lock:
@@ -233,9 +221,10 @@ class InferencePanel(QGroupBox):
 
 
 class AIReceiverGUI(QMainWindow):
-    def __init__(self, default_threshold):
+    def __init__(self, thresholds, parts):
         super().__init__()
-        self.default_threshold = default_threshold
+        self.thresholds = thresholds  # dict: {image_id: threshold}
+        self.parts = parts
         self.panels = {}
         self.initUI()
         
@@ -264,10 +253,10 @@ class AIReceiverGUI(QMainWindow):
         grid_layout = QGridLayout()
         grid_layout.setSpacing(15)
         
-        parts = ["masked_surface", "crop_0", "crop_1", "crop_2", "crop_3", "crop_4", "crop_5"]
         row, col = 0, 0
-        for part in parts:
-            panel = InferencePanel(part, self.default_threshold)
+        for part in self.parts:
+            threshold = self.thresholds.get(part, 0.5)
+            panel = InferencePanel(part, threshold)
             self.panels[part] = panel
             grid_layout.addWidget(panel, row, col)
             col += 1
@@ -286,57 +275,60 @@ class AIReceiverGUI(QMainWindow):
 # ======================================================================
 # Main CLI Entry
 # ======================================================================
-def load_models(args):
+def load_models(config_path):
+    """
+    โหลดโมเดลจาก JSON config file
+    Format: { "<image_id>": {"hef": "path/to/model.hef", "size": 320, "threshold": 0.15}, ... }
+    image_id ตรงกับ id ที่จะถูกส่งมากับภาพจาก Sender โดยตรง
+    """
     models = {}
-    model_configs = {
-        "surface": {"hef": args.hef_surface, "size": args.size_surface},
-        "crop0":    {"hef": args.hef_crop0,    "size": args.size_crop},
-        "crop1":    {"hef": args.hef_crop1,    "size": args.size_crop},
-        "crop2":    {"hef": args.hef_crop2,    "size": args.size_crop},
-        "crop3":    {"hef": args.hef_crop3,    "size": args.size_crop},
-        "crop4":    {"hef": args.hef_crop4,    "size": args.size_crop},
-        "crop5":    {"hef": args.hef_crop5,    "size": args.size_crop},
-    }
+    thresholds = {}
 
-    print("\nLoading models, please wait...")
-    for key, cfg in model_configs.items():
-        hef_path = cfg["hef"]
+    if not os.path.exists(config_path):
+        print(f"[Config] ไม่พบไฟล์ config: {config_path}")
+        return models, thresholds
+
+    with open(config_path, "r") as f:
+        model_configs = json.load(f)
+
+    print(f"\nLoading models from '{config_path}'...")
+    for image_id, cfg in model_configs.items():
+        hef_path = cfg.get("hef", "")
+        size = cfg.get("size", 224)
+        threshold = cfg.get("threshold", 0.5)
         if not hef_path: continue
         if not os.path.exists(hef_path):
-            print(f"[Model] {key} file not found: {hef_path}")
+            print(f"  - {image_id}: ไม่พบไฟล์ {hef_path}")
             continue
         try:
-            models[key] = HailoPatchCoreOptimized(hef_path, size=cfg["size"])
-            print(f"  + {key}: Loaded.")
+            models[image_id] = HailoPatchCoreOptimized(hef_path, size=size)
+            thresholds[image_id] = threshold
+            print(f"  + {image_id}: Loaded | threshold={threshold}")
         except Exception as e:
-            print(f"  - {key}: Failed. {e}")
-    return models
+            print(f"  - {image_id}: Failed. {e}")
+    return models, thresholds
 
 def main():
     parser = argparse.ArgumentParser(description="Multi-Part AI Receiver GUI")
-    parser.add_argument("--hef-surface", default="")
-    parser.add_argument("--size-surface", type=int, default=320)
-    
-    parser.add_argument("--hef-crop0", default="")
-    parser.add_argument("--hef-crop1", default="")
-    parser.add_argument("--hef-crop2", default="")
-    parser.add_argument("--hef-crop3", default="")
-    parser.add_argument("--hef-crop4", default="")
-    parser.add_argument("--hef-crop5", default="")
-    parser.add_argument("--size-crop", type=int, default=224)
-    
-    parser.add_argument("--threshold", type=float, default=0.1838)
+    parser.add_argument(
+        "--config",
+        default="models_config.json",
+        help="Path to JSON config file ที่ระบุ image_id → model HEF path และ threshold"
+    )
     args = parser.parse_args()
 
-    # Pre-load Hailo Models
-    models = load_models(args)
+    # Pre-load Hailo Models จาก config
+    models, thresholds = load_models(args.config)
     if not models:
         print("WARNING: No models loaded. GUI will start but no inference will occur.")
 
     app = QApplication(sys.argv)
-    
+
+    # ใช้ key จาก config เป็นรายการ panel ใน GUI
+    parts = list(models.keys()) if models else []
+
     # Initialize and display the new UI
-    gui = AIReceiverGUI(args.threshold)
+    gui = AIReceiverGUI(thresholds, parts)
     gui.show()
 
     # Start TCP receiver background services

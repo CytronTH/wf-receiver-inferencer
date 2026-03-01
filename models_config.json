@@ -1,0 +1,37 @@
+{
+    "masked_surface": {
+        "hef": "models/patchcore_bank_surface_masked_grayscale_0.5.hef",
+        "size": 320,
+        "threshold": 0.1838
+    },
+    "crop_1": {
+        "hef": "models/patchcore_bank_mask_1_grayscale_0.5.hef",
+        "size": 320,
+        "threshold": 0.1838
+    },
+    "crop_2": {
+        "hef": "models/patchcore_bank_mask_2_grayscale_0.5.hef",
+        "size": 320,
+        "threshold": 0.1838
+    },
+    "crop_3": {
+        "hef": "models/patchcore_bank_mask_3_grayscale_0.5.hef",
+        "size": 320,
+        "threshold": 0.1838
+    },
+    "crop_4": {
+        "hef": "models/patchcore_bank_mask_4_grayscale_0.5.hef",
+        "size": 320,
+        "threshold": 0.1838
+    },
+    "crop_5": {
+        "hef": "models/patchcore_bank_mask_5_grayscale_0.5.hef",
+        "size": 320,
+        "threshold": 0.1838
+    },
+    "crop_6": {
+        "hef": "models/patchcore_bank_mask_6_grayscale_0.5.hef",
+        "size": 320,
+        "threshold": 0.1838
+    }
+}
